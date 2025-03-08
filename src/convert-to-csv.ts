@@ -1,10 +1,12 @@
 import { PropertyData } from "./types";
-import db from "../db.json";
 
 import * as fse from "fs-extra";
 
-(function () {
-  convertToCsv(db);
+const BLOCK = "11505";
+
+(async function () {
+  const db = await import(`../db-${BLOCK}.json`);
+  convertToCsv(db.default);
 })();
 
 function convertToCsv(data: PropertyData) {
@@ -19,13 +21,18 @@ function convertToCsv(data: PropertyData) {
     }
   }
 
-  fse.writeFile("sales-data.csv", csv.join("\n"), "utf8", function (err) {
-    if (err) {
-      console.log(
-        "Some error occured - file either not saved or corrupted file saved."
-      );
-    } else {
-      console.log("It's saved!");
+  fse.writeFile(
+    `sales-data-${BLOCK}.csv`,
+    csv.join("\n"),
+    "utf8",
+    function (err) {
+      if (err) {
+        console.log(
+          "Some error occured - file either not saved or corrupted file saved."
+        );
+      } else {
+        console.log("It's saved!");
+      }
     }
-  });
+  );
 }

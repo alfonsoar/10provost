@@ -3,9 +3,15 @@ import * as fse from "fs-extra";
 
 import { PropertyData } from "./types";
 
+const DISTRICT = "0906";
+
+/** 10 PROVOST */
 const BLOCK = "11505";
 const LOT = "00001";
-const DISTRICT = "0906";
+
+/** 151 BAY */
+// const BLOCK = "11506";
+// const LOT = "00002.01";
 
 (async function () {
   const allUnitsHtml = await fetchAllUnitsHtml();
@@ -25,7 +31,7 @@ const DISTRICT = "0906";
   }, {});
 
   fse.writeFile(
-    "db.json",
+    `db-${BLOCK}.json`,
     JSON.stringify(final, null, 2),
     "utf8",
     function (err) {
@@ -60,7 +66,7 @@ async function fetchAllUnitsHtml() {
         p_loc: "",
         owner: "",
         block: BLOCK,
-        lot: "1",
+        lot: LOT.includes(".") ? "" : LOT.replace(/^0+/, ""),
         qual: "",
       }),
     }
@@ -95,8 +101,12 @@ function parseAllResidentialUnits(allUnitsHtml: string) {
 }
 
 async function fetchUnitDetailsHtml(unitQualifier: string) {
+  const realLot = LOT.includes(".")
+    ? `${LOT.split(".")[0]}__${LOT.split(".")[1]}`
+    : `${LOT}____`;
+
   const response = await fetch(
-    `https://taxrecords-nj.com/pub/cgi/m4.cgi?district=${DISTRICT}&l02=${DISTRICT}${BLOCK}____${LOT}____${unitQualifier}M`
+    `https://taxrecords-nj.com/pub/cgi/m4.cgi?district=${DISTRICT}&l02=${DISTRICT}${BLOCK}____${realLot}${unitQualifier}M`
   );
   return await response.text();
 }
@@ -116,6 +126,9 @@ function initialParse(rawHtml: string) {
     "sale history": {},
   };
 
+  // First, try to get data from the table as before
+  let saleHistoryFound = false;
+
   $("table:nth-of-type(2) tr:not(:first-child)").each((_, element) => {
     const date = $(element).find("td:nth-child(2)").text().trim();
     const price = parseInt(
@@ -129,7 +142,23 @@ function initialParse(rawHtml: string) {
         price,
         Grantee: grantee,
       };
+      saleHistoryFound = true;
     }
   });
+
+  // If no sale history found in the table, look for it elsewhere in the HTML
+  if (!saleHistoryFound) {
+    const saleDate = $("td:contains('Sale Date:')").next().text().trim();
+    const price = parseInt($("td:contains('Price:')").next().text().trim(), 10);
+    const owner = $("td:contains('Owner:')").next().text().trim();
+
+    if (saleDate && price && owner) {
+      result[qual]["sale history"][saleDate] = {
+        price,
+        Grantee: owner,
+      };
+    }
+  }
+
   return result;
 }
